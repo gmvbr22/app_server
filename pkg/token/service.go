@@ -1,7 +1,9 @@
 package token
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt"
@@ -18,7 +20,7 @@ type ClaimsResult struct {
 }
 
 type Service interface {
-	GenerateToken(claims *Claims, expiration int) (string, error)
+	GenerateToken(expiration int, claims *Claims) (string, error)
 	ValidateToken(tokenString string) (*ClaimsResult, error)
 }
 
@@ -32,7 +34,7 @@ func NewJWTService(secret []byte) Service {
 	}
 }
 
-func (service *service) GenerateToken(claims *Claims, expiration int) (string, error) {
+func (service *service) GenerateToken(expiration int, claims *Claims) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub":  claims.Subject,
 		"role": claims.Role,
@@ -49,8 +51,19 @@ func (service *service) ValidateToken(tokenString string) (*ClaimsResult, error)
 		}
 		return service.Secret, nil
 	})
-	if claims, ok := token.Claims.(*ClaimsResult); ok && token.Valid {
-		return claims, nil
+	if err != nil || !token.Valid {
+		return nil, err
 	}
-	return nil, err
+	claims := token.Claims.(*ClaimsResult)
+	m_errors := []string{}
+	if len(claims.Subject) == 0 {
+		m_errors = append(m_errors, "missing claims.Subject")
+	}
+	if len(claims.Role) == 0 {
+		m_errors = append(m_errors, "missing claims.Role")
+	}
+	if len(m_errors) > 0 {
+		return nil, errors.New(strings.Join(m_errors, "\n"))
+	}
+	return claims, nil
 }
